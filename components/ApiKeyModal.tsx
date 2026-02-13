@@ -14,15 +14,18 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave }) =>
     useEffect(() => {
         if (isOpen) {
             const stored = localStorage.getItem('gemini_api_key') || '';
-            setApiKey(stored);
+            setApiKey(stored === 'PLACEHOLDER_API_KEY' ? '' : stored);
             setSaved(false);
         }
     }, [isOpen]);
 
     const handleSave = () => {
-        if (apiKey.trim()) {
-            localStorage.setItem('gemini_api_key', apiKey.trim());
-            onSave(apiKey.trim());
+        const trimmed = apiKey.trim();
+        if (trimmed) {
+            localStorage.setItem('gemini_api_key', trimmed);
+            // Also save in multi-key format for compatibility
+            localStorage.setItem('gemini_api_keys', JSON.stringify([trimmed]));
+            onSave(trimmed);
             setSaved(true);
             setTimeout(() => {
                 onClose();
@@ -32,13 +35,17 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave }) =>
 
     const handleRemove = () => {
         localStorage.removeItem('gemini_api_key');
+        localStorage.removeItem('gemini_api_keys');
         setApiKey('');
         onSave('');
     };
 
     if (!isOpen) return null;
 
-    const hasStoredKey = !!localStorage.getItem('gemini_api_key');
+    const hasStoredKey = (() => {
+        const key = localStorage.getItem('gemini_api_key');
+        return !!key && key !== 'PLACEHOLDER_API_KEY';
+    })();
 
     return (
         <>
@@ -81,8 +88,8 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave }) =>
                     <div className="px-6 py-5 space-y-4">
                         {/* Status indicator */}
                         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${hasStoredKey
-                                ? 'bg-green-50 text-green-700 border border-green-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}>
                             <div className={`w-2 h-2 rounded-full ${hasStoredKey ? 'bg-green-500' : 'bg-amber-500'} animate-pulse`} />
                             {hasStoredKey ? 'API Key đã được cấu hình' : 'Chưa có API Key — Vui lòng nhập để sử dụng app'}
@@ -162,10 +169,10 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave }) =>
                                 onClick={handleSave}
                                 disabled={!apiKey.trim()}
                                 className={`px-5 py-2 text-sm font-medium rounded-xl transition flex items-center gap-2 ${saved
-                                        ? 'bg-green-500 text-white'
-                                        : apiKey.trim()
-                                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
-                                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                    ? 'bg-green-500 text-white'
+                                    : apiKey.trim()
+                                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                     }`}
                             >
                                 {saved ? (
