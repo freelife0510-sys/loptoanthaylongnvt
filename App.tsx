@@ -181,8 +181,8 @@ const App: React.FC = () => {
             <button
               onClick={() => setApiKeyModalOpen(true)}
               className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-all ${hasApiKey
-                  ? 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
-                  : 'bg-amber-400 hover:bg-amber-500 text-amber-900 shadow-lg animate-pulse'
+                ? 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+                : 'bg-amber-400 hover:bg-amber-500 text-amber-900 shadow-lg animate-pulse'
                 }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -493,8 +493,13 @@ const App: React.FC = () => {
       </main>
 
       {/* ======== FOOTER ======== */}
-      <footer className="text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white/50">
-        © {new Date().getFullYear()} Soạn Giáo Án Năng Lực Số — Powered by Google Gemini
+      <footer className="bg-slate-800 text-center py-5 px-4">
+        <p className="text-sm text-slate-400 mb-2">
+          © {new Date().getFullYear()} Soạn Giáo Án Năng Lực Số — Powered by Google Gemini
+        </p>
+        <p className="text-sm text-slate-300">
+          Mọi thông tin vui lòng liên hệ thầy Long: <span className="font-bold text-white">Zalo:</span> <span className="text-blue-300 font-semibold">0943278804</span>
+        </p>
       </footer>
 
       {/* ======== MODALS ======== */}
