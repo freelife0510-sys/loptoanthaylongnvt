@@ -115,10 +115,12 @@ const App: React.FC = () => {
           msg.id === teacherMsgId ? { ...msg, text: fullText } : msg
         ));
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      const errMsg = error?.message || 'Lỗi không xác định';
       setMessages(prev => prev.map(msg =>
         msg.id === teacherMsgId
-          ? { ...msg, text: "Ôi, thầy bị mất kết nối một chút. Em thử hỏi lại nhé! 😅", isError: true }
+          ? { ...msg, text: `⚠️ Lỗi: ${errMsg}`, isError: true }
           : msg
       ));
     } finally {
@@ -140,8 +142,9 @@ const App: React.FC = () => {
       const result = await generateLessonPlan(data);
       setAnalysisResult(result.analysis);
       setLessonPlan(result.lessonPlan);
-    } catch (err) {
-      setLessonError("Có lỗi xảy ra khi tạo giáo án. Vui lòng thử lại sau. (Kiểm tra API Key hoặc kết nối mạng)");
+    } catch (err: any) {
+      console.error('Lesson plan error:', err);
+      setLessonError(err?.message || "Có lỗi xảy ra khi tạo giáo án. Vui lòng thử lại sau.");
     } finally {
       setLessonLoading(false);
     }
