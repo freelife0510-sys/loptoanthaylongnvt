@@ -26,10 +26,13 @@ export interface GraphDataPoint {
 // --- New Types for Lesson Planning ---
 
 export interface LessonInput {
+  subject: string; // Môn học
   topic: string; // Tên bài học
   grade: string; // Lớp
   duration: string; // Thời lượng
   objectives: string; // Yêu cầu cần đạt
+  lessonFile?: File; // File giáo án (docx, pdf)
+  ppctFile?: File; // File phân phối chương trình (docx, pdf)
 }
 
 export interface AnalysisResult {

@@ -2,12 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, Role, LessonPlan, AnalysisResult, LessonInput } from "../types";
 import { SYSTEM_INSTRUCTION, LESSON_PLAN_INSTRUCTION } from "../constants";
 
-// Initialize Gemini Client
+// Initialize Gemini Client — prioritize user-provided key from localStorage
 const getClient = () => {
-  // Access environment variable safely
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const userApiKey = typeof window !== 'undefined'
+    ? localStorage.getItem('gemini_api_key')
+    : null;
+  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-    throw new Error("API Key is missing or invalid. Please check your .env.local file.");
+    throw new Error("Vui lòng nhập API Key. Nhấn nút 'Lấy API key' ở thanh tiêu đề.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -100,7 +102,7 @@ export const generateLessonPlan = async (input: LessonInput): Promise<{ analysis
     });
 
     // Parse the JSON response
-    const text = response.text();
+    const text = response.text;
     if (!text) throw new Error("No response from AI");
 
     // Clean up potential markdown formatting if the model adds it despite instructions
