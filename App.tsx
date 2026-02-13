@@ -170,8 +170,8 @@ const App: React.FC = () => {
               </svg>
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight">SOẠN GIÁO ÁN NĂNG LỰC SỐ</h1>
-              <p className="text-[11px] sm:text-xs text-blue-100 hidden sm:block">Hỗ trợ tích hợp Năng lực số toàn cấp bởi Trần Hoài Thanh</p>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight">Gia Sư Toán và KHBD tích hợp AI</h1>
+              <p className="text-[11px] sm:text-xs text-blue-100 hidden sm:block">Hỗ trợ tích hợp năng lực AI bởi thầy Long NVT</p>
             </div>
           </div>
 
