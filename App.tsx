@@ -39,9 +39,11 @@ const App: React.FC = () => {
 
   // Check API key on mount
   useEffect(() => {
-    const key = localStorage.getItem('gemini_api_key');
-    setHasApiKey(!!key);
-    if (!key) {
+    const singleKey = localStorage.getItem('gemini_api_key');
+    const multiKeys = localStorage.getItem('gemini_api_keys');
+    const hasKey = !!(singleKey && singleKey !== 'PLACEHOLDER_API_KEY') || !!multiKeys;
+    setHasApiKey(hasKey);
+    if (!hasKey) {
       // Auto-open modal if no API key
       setApiKeyModalOpen(true);
     }
