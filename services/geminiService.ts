@@ -23,6 +23,35 @@ const getClient = () => {
 };
 
 const MODEL_ID = "gemini-2.0-flash";
+const MAX_RETRIES = 3;
+
+// Helper: sleep for a duration
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper: check if error is a rate limit (429) error
+const isRateLimitError = (error: any): boolean => {
+  const msg = error?.message || error?.toString() || '';
+  return msg.includes('429') || msg.includes('quota') || msg.includes('rate') ||
+    msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Too Many Requests');
+};
+
+// Helper: format user-friendly error message
+const formatError = (error: any): Error => {
+  const msg = error?.message || error?.toString() || '';
+  if (msg.includes('API key') || msg.includes('API_KEY_INVALID') || msg.includes('401')) {
+    return new Error("API Key không hợp lệ. Vui lòng kiểm tra lại API Key trong phần Cấu hình.");
+  }
+  if (isRateLimitError(error)) {
+    return new Error("Đã vượt giới hạn API. Vui lòng đợi 30–60 giây rồi thử lại, hoặc kiểm tra quota tại Google AI Studio.");
+  }
+  if (msg.includes('not found') || msg.includes('404')) {
+    return new Error("Model AI không khả dụng. Vui lòng thử lại sau.");
+  }
+  if (msg.includes('CORS') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+    return new Error("Lỗi kết nối mạng. Kiểm tra internet và thử lại.");
+  }
+  return new Error("Lỗi AI: " + (msg || "Không xác định"));
+};
 
 export const streamResponse = async (
   currentHistory: Message[],
@@ -31,10 +60,8 @@ export const streamResponse = async (
 ): Promise<AsyncGenerator<string, void, unknown>> => {
   const ai = getClient();
 
-  // currentHistory already contains the new user message appended by App.tsx,
-  // so we just convert the full history — no need to push again.
   const contents = currentHistory
-    .filter(msg => !msg.isError && msg.text.trim() !== '')
+    .filter(msg => !msg.isError && (msg.text.trim() !== '' || msg.image))
     .map((msg) => {
       if (msg.role === Role.USER && msg.image) {
         return {
@@ -56,85 +83,105 @@ export const streamResponse = async (
       };
     });
 
-  try {
-    const response = await ai.models.generateContentStream({
-      model: MODEL_ID,
-      contents: contents,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7,
-        maxOutputTokens: 4096,
-      },
-    });
+  // Retry loop with exponential backoff for rate limit errors
+  let lastError: any = null;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const waitTime = Math.min(2000 * Math.pow(2, attempt), 15000); // 4s, 8s, 15s
+        console.log(`Retry attempt ${attempt + 1}/${MAX_RETRIES}, waiting ${waitTime}ms...`);
+        await sleep(waitTime);
+      }
 
-    async function* generator() {
-      for await (const chunk of response) {
-        const text = chunk.text;
-        if (text) {
-          yield text;
+      const response = await ai.models.generateContentStream({
+        model: MODEL_ID,
+        contents: contents,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+        },
+      });
+
+      async function* generator() {
+        for await (const chunk of response) {
+          const text = chunk.text;
+          if (text) {
+            yield text;
+          }
         }
       }
-    }
 
-    return generator();
+      return generator();
 
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    // Provide more descriptive errors
-    if (error?.message?.includes('API key')) {
-      throw new Error("API Key không hợp lệ. Vui lòng kiểm tra lại API Key trong phần Cấu hình.");
+    } catch (error: any) {
+      console.error(`Gemini API Error (attempt ${attempt + 1}):`, error);
+      lastError = error;
+
+      // Only retry on rate limit errors
+      if (!isRateLimitError(error) || attempt === MAX_RETRIES - 1) {
+        throw formatError(error);
+      }
+      // Otherwise continue to next retry attempt
     }
-    if (error?.message?.includes('quota') || error?.message?.includes('429')) {
-      throw new Error("Đã vượt giới hạn API. Vui lòng đợi một chút rồi thử lại.");
-    }
-    if (error?.message?.includes('not found') || error?.message?.includes('404')) {
-      throw new Error("Model AI không khả dụng. Vui lòng thử lại sau.");
-    }
-    throw new Error("Lỗi kết nối AI: " + (error?.message || "Không xác định. Kiểm tra API Key và kết nối mạng."));
   }
+
+  throw formatError(lastError);
 };
 
 export const generateLessonPlan = async (input: LessonInput): Promise<{ analysis: AnalysisResult, lessonPlan: LessonPlan }> => {
   const ai = getClient();
 
+  const topicText = input.topic?.trim() || `Bài học ${input.subject || 'Toán'} ${input.grade}`;
+
   const prompt = `
-  Hãy soạn giáo án cho chủ đề: "${input.topic}"
+  Hãy soạn giáo án cho chủ đề: "${topicText}"
   Môn: ${input.subject || 'Toán'}
   Lớp: ${input.grade}
-  Thời lượng: ${input.duration}
-  Yêu cầu cần đạt đầu vào: "${input.objectives}"
+  Thời lượng: ${input.duration || '45 phút'}
+  Yêu cầu cần đạt đầu vào: "${input.objectives || 'Theo chuẩn kiến thức kỹ năng của Bộ GD&ĐT'}"
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_ID,
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt }]
-        }
-      ],
-      config: {
-        systemInstruction: LESSON_PLAN_INSTRUCTION,
-        responseMimeType: 'application/json',
-        temperature: 0.5,
+  // Retry loop with exponential backoff
+  let lastError: any = null;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const waitTime = Math.min(2000 * Math.pow(2, attempt), 15000);
+        console.log(`Lesson plan retry ${attempt + 1}/${MAX_RETRIES}, waiting ${waitTime}ms...`);
+        await sleep(waitTime);
       }
-    });
 
-    // Parse the JSON response
-    const text = response.text;
-    if (!text) throw new Error("Không nhận được phản hồi từ AI");
+      const response = await ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ],
+        config: {
+          systemInstruction: LESSON_PLAN_INSTRUCTION,
+          responseMimeType: 'application/json',
+          temperature: 0.5,
+        }
+      });
 
-    // Clean up potential markdown formatting if the model adds it despite instructions
-    const jsonString = text.replace(/```json\n|\n```/g, "").trim();
+      const text = response.text;
+      if (!text) throw new Error("Không nhận được phản hồi từ AI");
 
-    return JSON.parse(jsonString);
+      const jsonString = text.replace(/```json\n|\n```/g, "").trim();
+      return JSON.parse(jsonString);
 
-  } catch (error: any) {
-    console.error("Lesson Plan Generation Error:", error);
-    if (error?.message?.includes('API key')) {
-      throw new Error("API Key không hợp lệ. Vui lòng kiểm tra lại trong phần Cấu hình API Key.");
+    } catch (error: any) {
+      console.error(`Lesson Plan Error (attempt ${attempt + 1}):`, error);
+      lastError = error;
+
+      if (!isRateLimitError(error) || attempt === MAX_RETRIES - 1) {
+        throw formatError(error);
+      }
     }
-    throw new Error("Lỗi tạo giáo án: " + (error?.message || "Không xác định"));
   }
+
+  throw formatError(lastError);
 };
