@@ -1,0 +1,5 @@
+{
+  "name": "MathTutor Long",
+  "description": "A smart AI Math Tutor for Vietnamese high school students featuring LaTeX rendering, graphing tools, and a unique teacher persona.",
+  "requestFramePermissions": []
+}
